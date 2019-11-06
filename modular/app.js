@@ -1,7 +1,8 @@
 'use strict';
 
-const fs = require('./fs');
-const events = require('./events');
+const fs = require('fs');
+const eventEmitter = require('./events');
+const util = require('util');
 
 //logging activity to console
 require('./logger');
@@ -9,28 +10,35 @@ require('./logger');
 //handling data cache
 require('./cache');
 
-function read(file){
-  fs.readFile(file, (err, data) => {
-    if(err) {throw err};
-    events.emit('uppercase', data)
-  });
+const readFile = async file => {
+  const fsRead = util.promisify(fs.readFile);
+  try{
+    const data = await fsRead(file);
+    eventEmitter.emit('file-read');
+    return data;
+  } catch(error){
+    eventEmitter.emit('file-read-error', error);
+  }
 };
 
-function toUpper(data){
+const upperCase = data => {
   let text = data.toString().toUpperCase();
-  eventEmitter.emit('write file', text)
+  eventEmitter.emit('file-uppercase', text);
+  return text;
 };
 
-function write(text){
-  fs.writeFile(file, Buffer.from(text), (err, data) => {
-    if(err){throw err};
-  });
+const saveFile = async (file, text) => {
+  const fsWrite = util.promisify(fs.writeFile);
+  await fsWrite(file, Buffer.from(text));
+  eventEmitter.emit('file-saved');
 };
 
-events.on('uppercase', (data) => toUpper(data));
-events.on('write file', () => console.log('File has been written'));
+const alterFile = async file => {
+  const data = await readFile(file);
+  const text = upperCase(data);
+  saveFile(file, text);
+};
 
-events.emit('save', 'In my logger');
 
 let file = process.argv.slice(2).shift();
-read(file);
+alterFile(file);
